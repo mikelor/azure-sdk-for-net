@@ -14,6 +14,12 @@ namespace Azure.AI.MetricsAdvisor.Tests
 {
     public class NotificationHookLiveTests : MetricsAdvisorLiveTestBase
     {
+        private static string[] NotificationHookTestCases =
+        {
+            nameof(NotificationHookKind.Email),
+            nameof(NotificationHookKind.Webhook)
+        };
+
         public NotificationHookLiveTests(bool isAsync) : base(isAsync)
         {
         }
@@ -348,6 +354,73 @@ namespace Azure.AI.MetricsAdvisor.Tests
         }
 
         [RecordedTest]
+        [TestCaseSource(nameof(NotificationHookTestCases))]
+        public async Task UpdateCommonMembersWithNullSetsToDefault(string hookKind)
+        {
+            // https://github.com/Azure/azure-sdk-for-net/issues/21504
+            if (hookKind == nameof(NotificationHookKind.Webhook))
+            {
+                Assert.Ignore();
+            }
+
+            MetricsAdvisorAdministrationClient adminClient = GetMetricsAdvisorAdministrationClient();
+
+            string hookName = Recording.GenerateAlphaNumericId("hook");
+            NotificationHook hookToCreate = CreateMockNotificationHook(hookKind, hookName);
+
+            hookToCreate.Description = "description";
+            hookToCreate.ExternalUri = new Uri("https://fakeuri.com");
+
+            await using var disposableHook = await DisposableNotificationHook.CreateHookAsync(adminClient, hookToCreate);
+
+            NotificationHook hookToUpdate = disposableHook.Hook;
+
+            hookToUpdate.Description = null;
+            hookToUpdate.ExternalUri = null;
+
+            NotificationHook updatedHook = await adminClient.UpdateHookAsync(hookToUpdate);
+
+            Assert.That(updatedHook.Description, Is.Empty);
+            Assert.That(updatedHook.ExternalUri, Is.Null);
+        }
+
+        [RecordedTest]
+        [Ignore("https://github.com/Azure/azure-sdk-for-net/issues/21504")]
+        public async Task UpdateWebHookWithNullSetsToDefault()
+        {
+            MetricsAdvisorAdministrationClient adminClient = GetMetricsAdvisorAdministrationClient();
+
+            string hookName = Recording.GenerateAlphaNumericId("hook");
+            var hookToCreate = new WebNotificationHook(hookName, new Uri("https://fakeuri.com/"))
+            {
+                Username = "username",
+                Password = "password",
+                // https://github.com/Azure/azure-sdk-for-net/issues/17485
+                //CertificateKey = "certKey",
+                CertificatePassword = "certPass"
+            };
+
+            await using var disposableHook = await DisposableNotificationHook.CreateHookAsync(adminClient, hookToCreate);
+
+            var hookToUpdate = disposableHook.Hook as WebNotificationHook;
+
+            hookToUpdate.Username = null;
+            hookToUpdate.Password = null;
+            hookToUpdate.CertificateKey = null;
+            hookToUpdate.CertificatePassword = null;
+
+            var updatedHook = (await adminClient.UpdateHookAsync(hookToUpdate)).Value as WebNotificationHook;
+
+            var expectedPassword = (Recording.Mode == RecordedTestMode.Playback) ? "Sanitized" : string.Empty;
+            var expectedCertPassword = (Recording.Mode == RecordedTestMode.Playback) ? "Sanitized" : string.Empty;
+
+            Assert.That(updatedHook.Username, Is.Empty);
+            Assert.That(updatedHook.Password, Is.EqualTo(expectedPassword));
+            Assert.That(updatedHook.CertificateKey, Is.Empty);
+            Assert.That(updatedHook.CertificatePassword, Is.EqualTo(expectedCertPassword));
+        }
+
+        [RecordedTest]
         [TestCase(true)]
         [TestCase(false)]
         public async Task GetHooksWithMinimumSetup(bool useTokenCredential)
@@ -482,5 +555,12 @@ namespace Azure.AI.MetricsAdvisor.Tests
                 }
             }
         }
+
+        private NotificationHook CreateMockNotificationHook(string kind, string name) => kind switch
+        {
+            nameof(NotificationHookKind.Email) => new EmailNotificationHook(name) { EmailsToAlert = { "fake@email.com" } },
+            nameof(NotificationHookKind.Webhook) => new WebNotificationHook(name, new Uri("https://fakeuri.com")),
+            _ => throw new ArgumentOutOfRangeException("Invalid data feed source kind.")
+        };
     }
 }
