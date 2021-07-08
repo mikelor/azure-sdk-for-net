@@ -1,0 +1,33 @@
+{
+  "Name": "NodeVMExtensionList",
+  "ProtocolName": "Models.NodeVMExtensionList",
+  "SummaryComment": "The result of listing the Compute Node extensions in a Node.",
+  "Properties": [
+    {
+      "Key": {
+        "Type": "IList<NodeVMExtension>",
+        "Name": "NodeVMExtensionList",
+        "SummaryComment": "The list of Compute Node extensions.",
+        "RemarksComment": null,
+        "BoundAccess": "read",
+        "UnboundAccess": "read,write"
+      },
+      "Value": null
+    },
+    {
+      "Key": {
+        "Type": "string",
+        "Name": "NextPageLink",
+        "SummaryComment": "The URL to get the next set of results.",
+        "RemarksComment": null,
+        "BoundAccess": "read",
+        "UnboundAccess": "read,write",
+        "HideSetter": true
+      },
+      "Value": {
+        "Type": "string",
+        "Name": "odata.nextLink"
+      }
+    }
+  ]
+}
